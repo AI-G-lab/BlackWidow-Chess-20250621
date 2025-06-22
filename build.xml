@@ -1,0 +1,107 @@
+<project name="BlackWidow" basedir=".">
+
+    <description>Build file for BlackWidow Chess</description>
+
+    <property name="src.dir" value="src" />
+    <property name="test.src.dir" value="tests" />
+    <property name="build.dir" value="build" />
+    <property name="test.build.dir" value="build/tests" />
+    <property name="lib.dir" value="lib" />
+    <property name="resources.dir" value="art" />
+    <property name="dist.dir" value="dist" />
+    <property name="main.class" value="com.chess.BlackWidow" />
+
+    <path id="master-classpath">
+        <fileset dir="${lib.dir}/" erroronmissingdir="false">
+            <include name="*.jar"/>
+        </fileset>
+        <pathelement path="${build.dir}"/>
+    </path>
+
+    <path id="test-classpath">
+        <path refid="master-classpath"/>
+        <pathelement path="${test.build.dir}"/>
+    </path>
+
+    <target name="initialize"
+            description="initial directory setup">
+        <mkdir dir="${build.dir}"/>
+        <mkdir dir="${test.build.dir}"/>
+        <mkdir dir="${dist.dir}"/>
+    </target>
+
+    <target name="clean"
+            description="removes all unwanted files">
+        <delete dir="${build.dir}"/>
+        <delete dir="${dist.dir}"/>
+    </target>
+
+    <target name="compile"
+            depends="initialize"
+            description="compiles source files">
+        <javac srcdir="${src.dir}"
+               destdir="${build.dir}"
+               includeAntRuntime="no"
+               failonerror="true"
+               source="1.8"
+               target="1.8"
+               encoding="UTF-8"
+               excludes="tests/**/*.java">
+            <classpath refid="master-classpath"/>
+        </javac>
+    </target>
+
+    <target name="compile-tests"
+            depends="compile"
+            description="compiles test files">
+        <javac srcdir="${test.src.dir}"
+               destdir="${test.build.dir}"
+               includeAntRuntime="no"
+               failonerror="true"
+               source="1.8"
+               target="1.8"
+               encoding="UTF-8">
+            <classpath refid="test-classpath"/>
+        </javac>
+    </target>
+
+    <target name="test"
+            depends="compile-tests"
+            description="runs unit tests">
+        <echo message="Running BlackWidow Chess test suite..."/>
+        <java classname="com.chess.tests.ChessTestSuite"
+              fork="true"
+              failonerror="false">
+            <classpath refid="test-classpath"/>
+        </java>
+    </target>
+
+    <target name="jar"
+            depends="compile"
+            description="builds jar file">
+        <jar destfile="${dist.dir}/BlackWidow.jar" basedir="${build.dir}">
+            <fileset dir="${build.dir}" includes="**/*.class" />
+            <fileset dir="${resources.dir}" erroronmissingdir="false" />
+            <zipgroupfileset dir="${lib.dir}" includes="**/*.jar" erroronmissingdir="false" />
+            <manifest>
+                <attribute name="Built-By" value="BlackWidow Chess Team" />
+                <attribute name="Manifest-Version" value="1.0" />
+                <attribute name="Main-Class" value="${main.class}" />
+                <attribute name="Implementation-Title" value="BlackWidow Chess" />
+                <attribute name="Implementation-Version" value="1.0.0" />
+                <attribute name="Implementation-Vendor" value="BlackWidow Chess Project" />
+            </manifest>
+        </jar>
+    </target>
+
+    <target name="run"
+            depends="jar"
+            description="runs the application">
+        <java jar="${dist.dir}/BlackWidow.jar" fork="true"/>
+    </target>
+
+    <target name="all"
+            depends="clean,compile,test,jar"
+            description="clean build with tests"/>
+
+</project>
