@@ -12,7 +12,7 @@ jobs:
     
     strategy:
       matrix:
-        java-version: [8, 11, 17]
+        java-version: [17] # Standardize on Java 17 for CI tests
     
     steps:
     - uses: actions/checkout@v3
@@ -64,10 +64,10 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
-    - name: Set up JDK 11
+    - name: Set up JDK 17
       uses: actions/setup-java@v3
       with:
-        java-version: '11'
+        java-version: '17' # Standardize on Java 17
         distribution: 'temurin'
     
     - name: Install Apache Ant
@@ -96,10 +96,10 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
-    - name: Set up JDK 11
+    - name: Set up JDK 17
       uses: actions/setup-java@v3
       with:
-        java-version: '11'
+        java-version: '17' # Standardize on Java 17
         distribution: 'temurin'
     
     - name: Install Apache Ant
@@ -127,10 +127,10 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
-    - name: Set up JDK 11
+    - name: Set up JDK 17
       uses: actions/setup-java@v3
       with:
-        java-version: '11'
+        java-version: '17' # Standardize on Java 17
         distribution: 'temurin'
     
     - name: Install Apache Ant

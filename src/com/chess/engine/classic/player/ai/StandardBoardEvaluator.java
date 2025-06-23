@@ -7,38 +7,57 @@ import com.chess.engine.classic.player.Player;
 
 import static com.chess.engine.classic.pieces.Piece.PieceType.BISHOP;
 
+/**
+ * A standard board evaluator that assigns a numerical score to a given board state.
+ * This evaluator considers various factors such as material balance, mobility, king safety,
+ * pawn structure, and other tactical and positional elements.
+ * It uses a singleton pattern to ensure a single instance.
+ */
 public final class StandardBoardEvaluator implements BoardEvaluator {
 
-    private static final int CHECK_MATE_BONUS = 10000;
-    private static final int CHECK_BONUS = 45;
-    private static final int CASTLE_BONUS = 25;
-    private static final int MOBILITY_MULTIPLIER = 1;
-    private static final int ATTACK_MULTIPLIER = 1;
-    private static final int TWO_BISHOPS_BONUS = 25;
-    private static final int CRAMPING_MULTIPLIER = 2;
+    private static final int CHECK_MATE_BONUS = 10000;      // A large bonus awarded for delivering checkmate. Scaled by depth.
+    private static final int CHECK_BONUS = 45;               // A bonus for putting the opponent's king in check.
+    private static final int CASTLE_BONUS = 25;              // A bonus for having castled, improving king safety and rook development.
+    private static final int MOBILITY_MULTIPLIER = 1;        // Multiplier for the mobility score. Higher values emphasize piece activity.
+    private static final int ATTACK_MULTIPLIER = 1;          // Multiplier for the attack score. Higher values emphasize aggressive moves.
+    private static final int TWO_BISHOPS_BONUS = 25;         // A bonus for possessing the bishop pair, which can control many squares.
+    private static final int CRAMPING_MULTIPLIER = 2;        // Multiplier for the cramping penalty. Higher values more severely penalize restricted mobility.
 
     private static final StandardBoardEvaluator INSTANCE = new StandardBoardEvaluator();
 
     private StandardBoardEvaluator() {}
 
+    /**
+     * Gets the singleton instance of the StandardBoardEvaluator.
+     * @return The singleton instance.
+     */
     public static StandardBoardEvaluator get() {
         return INSTANCE;
     }
 
+    /**
+     * Evaluates the given board position and returns a score.
+     * A positive score favors white, while a negative score favors black.
+     * The evaluation is based on the difference between the white player's score and the black player's score.
+     *
+     * @param board The board to evaluate.
+     * @param depth The current search depth (used for scaling checkmate bonus).
+     * @return The numerical evaluation of the board position.
+     */
     @Override
     public int evaluate(final Board board, final int depth) {
         return score(board.whitePlayer(), depth) - score(board.blackPlayer(), depth);
     }
 
     private static int score(final Player player, final int depth) {
-        final int score =  mobility(player) +
-                           cramping(player) +
-                           check_or_checkmate(player, depth) +
-                           attacks(player) +
-                           castle(player) +
-                           pieceEvaluations(player) +
-                           pawnStructure(player) +
-                           kingSafety(player);
+        final int score =  mobility(player) +                           // Bonus for having more legal moves than the opponent
+                           cramping(player) +                         // Penalty if the opponent has significantly more moves
+                           check_or_checkmate(player, depth) +          // Large bonus for checkmate, smaller for check
+                           attacks(player) +                            // Bonus for attacks, especially on higher-value pieces
+                           castle(player) +                             // Bonus for having castled
+                           pieceEvaluations(player) +                   // Sum of piece values and positional bonuses (includes two bishops bonus)
+                           pawnStructure(player) +                      // Score based on pawn formations
+                           kingSafety(player);                          // Score based on the safety of the king
 
         return score;
     }
@@ -110,6 +129,15 @@ public final class StandardBoardEvaluator implements BoardEvaluator {
         //return f1;
     }
 
+    /**
+     * Provides a detailed string representation of the board evaluation components.
+     * This includes scores for mobility, king threats, attacks, castling, piece evaluations,
+     * and pawn structure for both white and black, along with the final aggregate score.
+     *
+     * @param board The board for which to get evaluation details.
+     * @param depth The current search depth.
+     * @return A string detailing the evaluation components.
+     */
     public String evaluationDetails(final Board board, final int depth) {
         return
                 ("White Mobility : " + mobility(board.whitePlayer()) + "\n") +

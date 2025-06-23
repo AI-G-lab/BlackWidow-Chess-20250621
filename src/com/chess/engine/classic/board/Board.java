@@ -247,4 +247,89 @@ public final class Board {
             return new Board(this);
         }
     }
+
+    /**
+     * Checks if the current board position has insufficient material for a checkmate.
+     * This method checks for common scenarios like K vs K, K+N vs K, K+B vs K,
+     * and K+B vs K+B (bishops on same color).
+     * @return true if insufficient material is detected, false otherwise.
+     */
+    public boolean isInsufficientMaterial() {
+        final Collection<Piece> allPieces = getAllPieces();
+        if (allPieces.size() <= 2) { // K vs K
+            return true;
+        }
+
+        final List<Piece> whiteP = new ArrayList<>();
+        final List<Piece> blackP = new ArrayList<>();
+
+        for (final int pieceIndex : this.whitePieces) {
+            whiteP.add(this.boardConfig[pieceIndex]);
+        }
+        for (final int pieceIndex : this.blackPieces) {
+            blackP.add(this.boardConfig[pieceIndex]);
+        }
+
+        // K+N vs K or K+B vs K
+        if (whiteP.size() == 1 && blackP.size() == 2) { // White has King, Black has King + Minor
+            if (blackP.stream().anyMatch(p -> p.getPieceType() == Piece.PieceType.KNIGHT || p.getPieceType() == Piece.PieceType.BISHOP)) {
+                return true;
+            }
+        }
+        if (blackP.size() == 1 && whiteP.size() == 2) { // Black has King, White has King + Minor
+            if (whiteP.stream().anyMatch(p -> p.getPieceType() == Piece.PieceType.KNIGHT || p.getPieceType() == Piece.PieceType.BISHOP)) {
+                return true;
+            }
+        }
+
+        // K+B vs K+B (bishops on same color)
+        if (whiteP.size() == 2 && blackP.size() == 2) {
+            Piece whiteBishop = null;
+            Piece blackBishop = null;
+            boolean whiteHasOnlyKingAndBishop = true;
+            boolean blackHasOnlyKingAndBishop = true;
+
+            for(Piece p : whiteP) {
+                if (p.getPieceType() == Piece.PieceType.BISHOP) whiteBishop = p;
+                else if (p.getPieceType() != Piece.PieceType.KING) whiteHasOnlyKingAndBishop = false;
+            }
+            for(Piece p : blackP) {
+                if (p.getPieceType() == Piece.PieceType.BISHOP) blackBishop = p;
+                else if (p.getPieceType() != Piece.PieceType.KING) blackHasOnlyKingAndBishop = false;
+            }
+
+            if (whiteHasOnlyKingAndBishop && blackHasOnlyKingAndBishop && whiteBishop != null && blackBishop != null) {
+                // Check if bishops are on the same color squares
+                // (piecePosition % 2) == ((piecePosition / 8) % 2) for white squares
+                // (piecePosition % 2) != ((piecePosition / 8) % 2) for black squares
+                // Simplified: (pos / 8 + pos % 8) % 2 == 0 for one color, 1 for other.
+                boolean whiteBishopOnWhiteSquare = (whiteBishop.getPiecePosition() / 8 + whiteBishop.getPiecePosition() % 8) % 2 == 0;
+                boolean blackBishopOnWhiteSquare = (blackBishop.getPiecePosition() / 8 + blackBishop.getPiecePosition() % 8) % 2 == 0;
+                if (whiteBishopOnWhiteSquare == blackBishopOnWhiteSquare) {
+                    return true; // Both bishops on same color squares
+                }
+            }
+        }
+
+        // Add more rules if needed e.g. K vs K + 2N (generally a draw, but engine might not know)
+        // For now, this covers common cases. Pawns, Rooks, Queens automatically mean sufficient material.
+        // If any player has a pawn, rook or queen, it's not insufficient material with these simple checks.
+        for (Piece p : allPieces) {
+            if (p.getPieceType() == Piece.PieceType.PAWN ||
+                p.getPieceType() == Piece.PieceType.ROOK ||
+                p.getPieceType() == Piece.PieceType.QUEEN) {
+                return false;
+            }
+        }
+        // If we've passed all checks for sufficient material (pawns, rooks, queens)
+        // and haven't hit a specific insufficient material case, it's likely a more complex
+        // draw or sufficient material not covered. For safety, assume sufficient unless explicitly K vs K, K+m vs K.
+        // The previous K+B vs K+B check is specific.
+        // If after all specific checks, we only have Kings, or King+minor vs King, those are draws.
+        // If one side has two knights vs King, it's generally a draw but not covered above.
+        // The logic above for K+N/B vs K covers one side having only one minor piece.
+        // If both sides have only minor pieces and kings, it's complex.
+        // The current implementation is a simplification.
+        return false; // Default to sufficient material if not an obvious case.
+    }
 }

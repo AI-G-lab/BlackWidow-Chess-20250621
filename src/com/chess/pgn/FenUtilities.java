@@ -26,9 +26,22 @@ public class FenUtilities {
                 calculateCurrentPlayerText(board) + " " +
                 calculateCastleText(board) + " " +
                 calculateEnPassantSquare(board) + " " +
-                "0 1";
+                "0 1"; // Standard FEN includes halfmove clock and fullmove number
     }
 
+    /**
+     * Creates a FEN string representing the board position, current player, castling rights,
+     * and en passant square. This version omits the halfmove clock and fullmove number,
+     * making it suitable for position repetition checks.
+     * @param board The board state to represent.
+     * @return A FEN string for the board position.
+     */
+    public static String createFENFromBoard(final Board board) {
+        return calculateBoardText(board) + " " +
+               calculateCurrentPlayerText(board) + " " +
+               calculateCastleText(board) + " " +
+               calculateEnPassantSquare(board);
+    }
 
     private static Board parseFEN(final String fenString) {
         final String[] fenPartitions = fenString.trim().split(" ");

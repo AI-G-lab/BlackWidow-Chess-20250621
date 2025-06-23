@@ -6,7 +6,7 @@ REM Check if Java is installed
 javac -version >nul 2>&1
 if %errorlevel% neq 0 (
     echo ERROR: Java compiler (javac) is not installed or not in PATH
-    echo Please install JDK 8 or higher and try again
+    echo Please install JDK 17 or higher and try again
     echo.
     pause
     exit /b 1
@@ -24,7 +24,7 @@ if exist "dist\BlackWidow.jar" del dist\BlackWidow.jar >nul 2>&1
 
 REM Compile source files
 echo Compiling source files...
-javac -cp "build;lib/*" -d build -sourcepath src -encoding UTF-8 src/com/chess/BlackWidow.java
+javac -source 17 -target 17 -cp "build;lib/*" -d build -sourcepath src -encoding UTF-8 src/com/chess/BlackWidow.java
 if %errorlevel% neq 0 (
     echo ERROR: Compilation failed
     pause
@@ -33,7 +33,7 @@ if %errorlevel% neq 0 (
 
 REM Compile network files
 echo Compiling network files...
-javac -cp "build;lib/*" -d build -sourcepath src -encoding UTF-8 src/network/*.java
+javac -source 17 -target 17 -cp "build;lib/*" -d build -sourcepath src -encoding UTF-8 src/network/*.java
 if %errorlevel% neq 0 (
     echo ERROR: Network compilation failed
     pause

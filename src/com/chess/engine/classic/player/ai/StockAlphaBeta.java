@@ -16,6 +16,7 @@ public class StockAlphaBeta extends Observable implements MoveStrategy {
 
     private final BoardEvaluator evaluator;
     private final int searchDepth;
+    private final boolean trackBoardEvaluations; // To avoid double counting if evaluator is shared.
     private long boardsEvaluated;
     private int quiescenceCount;
     private static final int MAX_QUIESCENCE = 5000 * 0;
@@ -54,12 +55,39 @@ public class StockAlphaBeta extends Observable implements MoveStrategy {
         abstract Collection<Move> sort(Collection<Move> moves);
     }
 
+    /**
+     * Constructor for StockAlphaBeta.
+     * Uses the ImprovedStandardBoardEvaluator with default parameters.
+     * @param searchDepth The maximum search depth.
+     */
     public StockAlphaBeta(final int searchDepth) {
-        this.evaluator = StandardBoardEvaluator.get();
+        this(searchDepth, ImprovedStandardBoardEvaluator.get(), true);
+    }
+
+    /**
+     * Constructor for StockAlphaBeta that accepts a custom BoardEvaluator.
+     * @param searchDepth The maximum search depth.
+     * @param evaluator The BoardEvaluator to use.
+     */
+    public StockAlphaBeta(final int searchDepth, final BoardEvaluator evaluator) {
+        this(searchDepth, evaluator, true);
+    }
+
+    /**
+     * Internal constructor.
+     * @param searchDepth The maximum search depth.
+     * @param evaluator The BoardEvaluator to use.
+     * @param trackBoardEvaluations If true, this instance will increment the boardsEvaluated count.
+     *                              Set to false if the evaluator is external and tracks its own evaluations.
+     */
+    private StockAlphaBeta(final int searchDepth, final BoardEvaluator evaluator, final boolean trackBoardEvaluations) {
+        this.evaluator = evaluator;
         this.searchDepth = searchDepth;
         this.boardsEvaluated = 0;
         this.quiescenceCount = 0;
+        this.trackBoardEvaluations = trackBoardEvaluations; // Not strictly needed if boardEvaluated is an instance var
     }
+
 
     @Override
     public String toString() {

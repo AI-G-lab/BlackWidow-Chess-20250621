@@ -43,8 +43,8 @@
                destdir="${build.dir}"
                includeAntRuntime="no"
                failonerror="true"
-               source="1.8"
-               target="1.8"
+               source="17"
+               target="17"
                encoding="UTF-8"
                excludes="tests/**/*.java">
             <classpath refid="master-classpath"/>
@@ -58,8 +58,8 @@
                destdir="${test.build.dir}"
                includeAntRuntime="no"
                failonerror="true"
-               source="1.8"
-               target="1.8"
+               source="17"
+               target="17"
                encoding="UTF-8">
             <classpath refid="test-classpath"/>
         </javac>
