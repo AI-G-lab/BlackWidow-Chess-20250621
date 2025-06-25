@@ -23,18 +23,19 @@ import static com.chess.engine.classic.board.Move.MoveFactory;
  *
  * <p>Note: Zobrist hashing for transposition table keys is currently computed from scratch
  * at each node. Incremental Zobrist key updates would be a key performance optimization.
- * The quiescence search implementation is also currently minimal.
+ * This version includes a quiescence search to handle tactical positions more robustly.
  */
 public class StockAlphaBeta extends Observable implements MoveStrategy {
 
     private final BoardEvaluator evaluator;
-    private final int searchDepth;
+    private final int searchDepth; // Nominal search depth for the main search.
     private final boolean trackBoardEvaluations; // To avoid double counting if evaluator is shared.
     private long boardsEvaluated; // Number of board states evaluated in the last top-level search.
-    private int quiescenceCount; // Count of quiescence extensions in the last search.
+    private int quiescenceNodesVisited; // Counter for nodes visited during quiescence search phase.
     private final TranspositionTable transpositionTable; // Transposition table for caching search results.
 
-    private static final int MAX_QUIESCENCE = 0; // Effectively disables deep quiescence search (5000 * 0 = 0).
+    /** Maximum depth for quiescence search extensions beyond the nominal search depth. */
+    private static final int MAX_QUIESCENCE_DEPTH = 6;
 
     private static final Comparator<Move> SIMPLE_MOVE_COMPARATOR = (m1, m2) -> {
         if (m1.isCastlingMove() != m2.isCastlingMove()) {
@@ -217,13 +218,18 @@ public class StockAlphaBeta extends Observable implements MoveStrategy {
             }
         }
 
-        if (depth == 0 || BoardUtils.isEndGame(board)) {
+        if (BoardUtils.isEndGame(board)) { // Terminal node like checkmate or stalemate
             this.boardsEvaluated++;
-            int eval = this.evaluator.evaluate(board, depth);
-            if (depth > 0 || BoardUtils.isEndGame(board)) { // Store terminal or deeper quiescence nodes
-                this.transpositionTable.store(zobristKey, depth, eval, TranspositionTableEntry.EntryType.EXACT, null);
-            }
+            int eval = this.evaluator.evaluate(board, depth); // depth might be > 0 here if mate found early
+            // For terminal nodes, depth for TT store could be considered max depth or current depth.
+            // Let's use a high depth to indicate it's a final score.
+            this.transpositionTable.store(zobristKey, Integer.MAX_VALUE, eval, TranspositionTableEntry.EntryType.EXACT, null);
             return eval;
+        }
+
+        if (depth == 0) { // Reach nominal search depth, begin quiescence search
+            // this.quiescenceNodesVisited++; // Counted inside qSearchMax now
+            return qSearchMax(board, alpha, beta, 0);
         }
 
         int currentHighest = alpha; // In a MAX node, we want to find a score >= beta. Start with alpha.
@@ -288,13 +294,16 @@ public class StockAlphaBeta extends Observable implements MoveStrategy {
             }
         }
 
-        if (depth == 0 || BoardUtils.isEndGame(board)) {
+        if (BoardUtils.isEndGame(board)) { // Terminal node like checkmate or stalemate
             this.boardsEvaluated++;
             int eval = this.evaluator.evaluate(board, depth);
-            if (depth > 0 || BoardUtils.isEndGame(board)) {
-                 this.transpositionTable.store(zobristKey, depth, eval, TranspositionTableEntry.EntryType.EXACT, null);
-            }
+            this.transpositionTable.store(zobristKey, Integer.MAX_VALUE, eval, TranspositionTableEntry.EntryType.EXACT, null);
             return eval;
+        }
+
+        if (depth == 0) { // Reach nominal search depth, begin quiescence search
+            // this.quiescenceNodesVisited++; // Counted inside qSearchMin now
+            return qSearchMin(board, alpha, beta, 0);
         }
 
         int currentLowest = beta;
@@ -335,23 +344,111 @@ public class StockAlphaBeta extends Observable implements MoveStrategy {
         return currentLowest;
     }
 
-    private int calculateQuiescenceDepth(final Board toBoard, final int depth) {
-        if (depth == 1 && this.quiescenceCount < MAX_QUIESCENCE) {
-            int activityMeasure = 0;
-            if (toBoard.currentPlayer().isInCheck()) {
-                activityMeasure++;
-            }
-            for (final Move move : BoardUtils.lastNMoves(toBoard, 2)) {
-                if (move.isAttack()) {
-                    activityMeasure++;
+    // Removed unused calculateQuiescenceDepth method.
+
+    /**
+     * Performs a quiescence search for the maximizing player (White).
+     * This search extends beyond the nominal search depth to evaluate "unquiet" positions,
+     * primarily by considering only capture moves until the position stabilizes or
+     * the maximum quiescence depth is reached.
+     *
+     * @param board The current board state.
+     * @param alpha The lower bound for the maximizing player.
+     * @param beta The upper bound for the minimizing player.
+     * @param currentQuiescenceDepth The current depth of the quiescence search.
+     * @return The evaluated score from the perspective of the maximizing player.
+     */
+    private int qSearchMax(final Board board, int alpha, int beta, int currentQuiescenceDepth) {
+        this.boardsEvaluated++;
+        this.quiescenceNodesVisited++;
+
+        if (BoardUtils.isEndGame(board) || currentQuiescenceDepth >= MAX_QUIESCENCE_DEPTH) {
+            return this.evaluator.evaluate(board, 0);
+        }
+
+        int standPatScore = this.evaluator.evaluate(board, 0);
+        if (standPatScore >= beta) {
+            return beta; // Fail high
+        }
+        if (standPatScore > alpha) {
+            alpha = standPatScore;
+        }
+
+        // Generate only capture moves for quiescence search
+        // Using MoveSorter.EXPENSIVE for MVV-LVA like ordering of captures
+        List<Move> captureMoves = board.currentPlayer().getLegalMoves().stream()
+                                     .filter(Move::isAttack) // Assuming Move::isAttack correctly identifies captures
+                                     .collect(Collectors.toList());
+
+        for (final Move move : MoveSorter.EXPENSIVE.sort(captureMoves)) {
+            final MoveTransition moveTransition = board.currentPlayer().makeMove(move);
+            if (moveTransition.getMoveStatus().isDone()) {
+                final Board toBoard = moveTransition.getToBoard();
+                // It's important that the player whose turn it is on toBoard is not in check
+                // from a non-capture move by the opponent (which qSearchMin won't make).
+                // If current player can make a capture that leaves their king in check, it's an illegal move,
+                // but getCaptureMoves() should only return legal captures.
+
+                final int score = qSearchMin(toBoard, alpha, beta, currentQuiescenceDepth + 1);
+
+                if (score > alpha) {
+                    alpha = score;
+                }
+                if (alpha >= beta) {
+                    return beta; // Fail high (beta cutoff)
                 }
             }
-            if (activityMeasure >= 2) {
-                this.quiescenceCount++;
-                return 2;
+        }
+        return alpha;
+    }
+
+    /**
+     * Performs a quiescence search for the minimizing player (Black).
+     * This search extends beyond the nominal search depth to evaluate "unquiet" positions,
+     * primarily by considering only capture moves until the position stabilizes or
+     * the maximum quiescence depth is reached.
+     *
+     * @param board The current board state.
+     * @param alpha The lower bound for the maximizing player.
+     * @param beta The upper bound for the minimizing player.
+     * @param currentQuiescenceDepth The current depth of the quiescence search.
+     * @return The evaluated score from the perspective of the minimizing player.
+     */
+    private int qSearchMin(final Board board, int alpha, int beta, int currentQuiescenceDepth) {
+        this.boardsEvaluated++;
+        this.quiescenceNodesVisited++;
+
+        if (BoardUtils.isEndGame(board) || currentQuiescenceDepth >= MAX_QUIESCENCE_DEPTH) {
+            return this.evaluator.evaluate(board, 0);
+        }
+
+        int standPatScore = this.evaluator.evaluate(board, 0);
+        if (standPatScore <= alpha) {
+            return alpha; // Fail low
+        }
+        if (standPatScore < beta) {
+            beta = standPatScore;
+        }
+
+        List<Move> captureMoves = board.currentPlayer().getLegalMoves().stream()
+                                     .filter(Move::isAttack)
+                                     .collect(Collectors.toList());
+
+        for (final Move move : MoveSorter.EXPENSIVE.sort(captureMoves)) {
+            final MoveTransition moveTransition = board.currentPlayer().makeMove(move);
+            if (moveTransition.getMoveStatus().isDone()) {
+                final Board toBoard = moveTransition.getToBoard();
+                final int score = qSearchMax(toBoard, alpha, beta, currentQuiescenceDepth + 1);
+
+                if (score < beta) {
+                    beta = score;
+                }
+                if (beta <= alpha) {
+                    return alpha; // Fail low (alpha cutoff)
+                }
             }
         }
-        return depth - 1;
+        return beta;
     }
 
     private static String calculateTimeTaken(final long start, final long end) {
